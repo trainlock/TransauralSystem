@@ -5,21 +5,64 @@ clear;              % Erase all exsisting variables
 format compact;
 
 % Read KEMAR-recorded audiofiles
-sL = audioread("audiofiles/headphones+spkr/ZOOM0005_Tr1.wav");
-sR = audioread("audiofiles/headphones+spkr/ZOOM0005_Tr3.wav");
+[sL, fs] = audioread("audiofiles/headphones+spkr/ZOOM0005_Tr1.wav");
+[sR, fs] = audioread("audiofiles/headphones+spkr/ZOOM0005_Tr3.wav");
 
-audioLength = length(sL);
+NFFT = length(sL);
 
 % Read filter audiofiles
-% [gRR, fs] = audioread("audiofiles/headphones+spkr/R0e010a.wav");
-% gRL = audioread("audiofiles/headphones+spkr/R0e350a.wav");
-% gLR = audioread("audiofiles/headphones+spkr/L0e010a.wav");
-% gLL = audioread("audiofiles/headphones+spkr/L0e350a.wav");
-[gRR, fs] = audioread("audiofiles/elev0/R0e030a.wav");
-gRL = audioread("audiofiles/elev0/R0e330a.wav");
-gLR = audioread("audiofiles/elev0/L0e030a.wav");
+% Use 30 degrees and 330 degrees for left and right ear
+gRR = audioread("audiofiles/elev0/R0e030a.wav");
+gRL = audioread("audiofiles/elev0/L0e030a.wav");
+gLR = audioread("audiofiles/elev0/R0e330a.wav");
 gLL = audioread("audiofiles/elev0/L0e330a.wav");
 
+% Insert Graph 1
+
+% Covert to frequency domain using Fourier transformation
+fftSR = fft(sR);
+fftSL = fft(sL);
+
+% Covert to frequency domain using Fourier transformation
+fftGRR = fft(gRR, NFFT);
+fftGRL = fft(gRL, NFFT);
+fftGLR = fft(gLR, NFFT);
+fftGLL = fft(gLL, NFFT);
+
+% Insert Graph 2
+
+% Calculate denominator
+denominator = (fftGRR .* fftGLL - fftGRL .* fftGLR);
+
+% Filter (K-Suke-Filter)
+denominator(abs(denominator) <= 0.1) = 0.1 + 0.1i;
+
+% Calculate H-values
+hRR = fftGLL ./  denominator;
+hRL = fftGRL ./ -denominator;
+hLR = fftGLR ./ -denominator;
+hLL = fftGRR ./  denominator;
+
+% Calculate X-values (Frequency domain)
+xR = hRR .* fftSR + hLR .* fftSL;
+xL = hRL .* fftSR + hLL .* fftSL;
+
+% Calculate Y-values
+% yR = xL .* gLL + xR .* gRL;
+% yL = xR .* gRR + xR .* gLR;
+
+% Transform back to Time domain using inverse Fourier transform
+% Convert to the proper length symmetrically
+xr = ifft(xR, NFFT, 'symmetric');
+xl = ifft(xL, NFFT, 'symmetric');
+
+% Write output audiofile
+audio = [xr xl];
+audiowrite("output.wav", audio, fs);
+
+% Insert Graph 3
+
+%% Graph 1
 % Timestep (used for plotting)
 % dt = 1/fs;
 % t = 0:dt:(length(gRR) * dt) - dt;
@@ -49,12 +92,7 @@ gLL = audioread("audiofiles/elev0/L0e330a.wav");
 % ylabel('Amplitude');
 % title("L0e350a.WAV");
 
-% Covert to frequency domain using Fourier transformation
-fftGRR = fft(gRR, audioLength);
-fftGRL = fft(gRL, audioLength);
-fftGLR = fft(gLR, audioLength);
-fftGLL = fft(gLL, audioLength);
-
+%% GRAPH 2
 % PLOT FFT VERSION
 % figure
 % subplot(2, 2, 1);
@@ -81,39 +119,7 @@ fftGLL = fft(gLL, audioLength);
 % ylabel('Intensity');
 % title("GLL FFT");
 
-% Calculate denominator
-denominator = (fftGRR .* fftGLL - fftGRL .* fftGLR);
-
-% Filter (K-Suke-Filter=)
-denominator(abs(denominator) >= 0.01) = 0.1 + 0.1i;
-
-% Calculate H-values
-hRR = fftGLL ./ denominator;
-hRL = fftGLR ./ denominator;
-hLR = fftGRL ./ denominator;
-hLL = fftGRR ./ denominator;
-
-% Covert to frequency domain using Fourier transformation
-fftSR = fft(sR);
-fftSL = fft(sL);
-
-% Calculate X-values (Frequency domain)
-xR = hRR .* fftSR - hLR .* fftSL;
-xL = hRL .* fftSR - hLL .* fftSL;
-
-% Calculate Y-values
-% yR = xL .* gLL + xR .* gRL;
-% yL = xR .* gRR + xR .* gLR;
-
-% Transform back to Time domain using inverse Fourier transform
-% Convert to the proper length symmetrically
-xl = ifft(xL, 'symmetric');
-xr = ifft(xR, 'symmetric');
-
-% Write output audiofile
-audio = [xl xr];
-audiowrite("output.wav", audio, fs);
-
+%% GRAPH 3
 % subplot(2, 1, 1);
 % plot(xr);
 % subplot(2, 1, 2);
